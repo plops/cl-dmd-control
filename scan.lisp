@@ -21,33 +21,39 @@
        (clear :color-buffer-bit)
        (clear-color 0 0 0 0)
        (line-width 1)
-       (color 0 1 0)
        
-       (let ((period 1)
-	     (width 1))
+       (color (expt (sin (/ rot 4.2)) 2) 
+	      (acos (expt (sin (/ rot 3.2)) 2))
+	      (expt (sin (/ rot 8.3)) 2))
+       
+       (let ((period 8)
+	     (width 4))
 	 (flet ((v (x)
-		  (vertex x 0) (vertex x h)))
+		  (vertex x 0) (vertex x 1000)))
 	   (with-pushed-matrix
-	     (scale .5 1 1)
+	     ;(scale .5 1 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate -45 0 0 1)
 	     
 	     (with-primitive :lines
-	       (dotimes (i 100) 
+	       (dotimes (i 200) 
 		  (dotimes (j width)
-		    (v (+ (* (sqrt 2) j)
-			  (* period (* (sqrt 2) i))))))))
+		    (v (+ (* .5 (sqrt 2) j)
+			  (* .5 (sqrt 2) (mod rot period))
+			  (* period (* (sqrt 2) i ))
+			  ))))))
 	   (with-pushed-matrix
-	     (scale .5 1 1)
+	     ;(scale .5 1 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate 45 0 0 1)
 	     (with-primitive :lines
-	       (dotimes (i 100) 
+	       (dotimes (i 200) 
 		  (dotimes (j width)
-		    (v (+ (* (sqrt 2) j)
+		    (v (+ (* .5 (sqrt 2) j)
+			   (* .5 (sqrt 2)  (mod rot period))
 			  (* period (* (sqrt 2) i))))))))))
        (with-pushed-matrix
-	 (scale .5 1 1)
+	 ;(scale .5 1 1)
 	 (translate 10 10 0)
 	 (with-primitive :points
 	   (vertex 200 200)
