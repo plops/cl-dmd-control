@@ -15,6 +15,10 @@
 					:input t
 					:output t
 					:element-type '(unsigned-byte 8))))
+#+nil
+(progn
+ (socket-close soc)
+ (setf stm nil))
 
 (defun read-byte-no-hang (stream)
   (when (listen stream)
@@ -75,18 +79,33 @@
 (defmethod print-object ((obj dlp-packet) str)
   (with-slots (packet-type cmd1 cmd2 flags payload-length 
 			   data-payload checksum) obj
-    (format str "<pkt~{ ~a~}>" (list packet-type cmd1 cmd2 flags
-				     payload-length 
-				     data-payload checksum))))
+    (format str "<pkt~{ ~a~}>" (list (parse-packet-type packet-type)
+				     cmd1 cmd2
+				     (parse-flags flags)
+				     ;payload-length 
+				     (convert-payload-to-string data-payload) 
+				     checksum))))
+
+(defun convert-payload-to-string (payload)
+ (let ((trailing-zeros (loop for i from (1- (length payload)) downto 0
+			   when (= 0 (elt payload i)) count 1)))
+   (map 'string #'code-char
+	(subseq payload 
+		0 
+		(- (length payload) 
+		   trailing-zeros)))))
 
 (defun make-host-read-command (cmd1 cmd2 &key data)
   (make-instance 'dlp-packet :packet-type #x4 :cmd1 cmd1 :cmd2 cmd2
 		 :flags 0 :data-payload data))
 
-(defun read-versions ()
-  (make-host-read-command 1 0 :data '(0)))
+(defun read-version (system)
+  (make-host-read-command 1 0 :data (list (ecase system
+					    ('arm 0)
+					    ('fpga #x10)
+					    ('msp #x20)))))
 #+nil
-(read-versions)
+(read-version 'arm)
 
 #+nil
 (convert-to-sequence (read-versions))
@@ -118,9 +137,51 @@
 
 #+nil
 (defparameter recv (with-tcp stm
-		     (read-versions)))
+		     (read-version 'msp)))
 
+#+nil
 (make-dlp-packet-from-sequence recv)
+
+(defun parse-flags (flags)
+  (ecase flags
+    (0 'singlepac)
+    (1 'multi-beg)
+    (2 'multi-mid)
+    (3 'multi-end)))
+
+(defmethod parse-type-read-response ((p dlp-packet) request)
+  (with-slots (packet-type cmd1 cmd2 payload-length flags) p
+    (unless (= packet-type 5)
+      (error "no read response packet"))
+    (unless (and (= cmd1 (cmd1 request))
+		 (= cmd2 (cmd2 request)))
+      (error "response cmd1 and cmd2 do not match request packet."))
+    (when (= 0 payload-length)
+      (error "response doesn't contain data."))
+    ))
+
+(defun parse-packet-type (type)
+  (ecase type
+    (0 'busy)
+    (1 'erro)
+    (2 'wreq)
+    (3 'wans)
+    (4 'rreq)
+    (5 'rans)))
+
+(defmethod parse-packet-type ((p dlp-packet) &optional request)
+  "Dispatch to different functions depending on the packet type. We do
+extra checks if you supply the request packet, when P is an
+answer---of type 0, 1, 3 or 5."
+  (ecase (packet-type p)
+    (0 (parse-type-busy p request))
+    (1 (parse-type-error p request))
+    (2 (parse-type-write p))
+    (3 (parse-type-write-response p request))
+    (4 (parse-type-read p))
+    (5 (parse-type-read-response p request))))
+
+
 
 (defun make-dlp-packet-from-sequence (seq)
   (let* ((payload-length (+ (elt seq 4)
@@ -131,9 +192,6 @@
 			 :cmd2 (elt seq 2)
 			 :flags (elt seq 3)
 			 :data-payload (subseq seq 6 (+ 6 payload-length)))))
-    (unless (= (length (data-payload p))
-	       payload-length)
-      (error "length doesn't match"))
     (unless (= (elt seq (+ 6 payload-length))
 	       (checksum p))
       (error "checksum test failed."))
