@@ -3,17 +3,18 @@
 (defpackage :g (:use :cl :sb-bsd-sockets))
 (in-package :g)
 
+#+nil
+(progn
+  (defparameter soc (make-instance 'inet-socket 
+				   :type :stream
+				   :protocol :tcp))
+  (defparameter con (socket-connect 
+		     soc #(192 168 1 100) #x5555))
 
-(defparameter soc (make-instance 'inet-socket 
-				 :type :stream
-				 :protocol :tcp))
-(defparameter con (socket-connect 
-		   soc #(192 168 1 100) #x5555))
-
-(defparameter stm (socket-make-stream soc 
-				      :input t
-				      :output t
-				      :element-type '(unsigned-byte 8)))
+  (defparameter stm (socket-make-stream soc 
+					:input t
+					:output t
+					:element-type '(unsigned-byte 8))))
 
 (defun read-byte-no-hang (stream)
   (when (listen stream)
@@ -68,10 +69,6 @@
 			   data-payload
 			   checksum) p
     (setf payload-length (length data-payload))
-    (when (listp data-payload)
-      (setf data-payload (make-array (length data-payload) 
-				     :element-type '(unsigned-byte 8)
-				     :initial-contents data-payload)))
     (setf checksum (mod (+ packet-type cmd1 cmd2 flags payload-length
 			   (reduce #'+ data-payload)) #x100))))
 
@@ -91,25 +88,53 @@
 #+nil
 (read-versions)
 
-(make-instance 'dlp-packet :)
+#+nil
+(convert-to-sequence (read-versions))
+
+(defmethod convert-to-sequence ((p dlp-packet))
+  (with-slots (packet-type cmd1 cmd2 flags payload-length 
+			   data-payload checksum) p
+    ;; lsb of payload-length comes first
+    (let* ((lsb (ldb (byte 8 0) payload-length))
+	   (msb (ldb (byte 8 8) payload-length))
+	   (l (append (list packet-type cmd1 cmd2 flags lsb msb)
+		      data-payload
+		      (list checksum))))
+      (make-array (length l)
+			   :element-type '(unsigned-byte 8)
+			   :initial-contents l))))
+#+nil
+(write-sequence (convert-to-sequence (read-versions))
+		stm)
+#+nil
+(force-output stm)
+
 
 (defmacro with-tcp (stream &body body)
   `(let ((p ,@body))
-     (write-sequence p ,stream)
+     (write-sequence (convert-to-sequence p) ,stream)
      (force-output ,stream)
-     (let ((recv (read-available-bytes ,stream)))
-       (push (list p
-		   (let ((recv-a (map-into (make-array (length recv)
-						       :element-type '(unsigned-byte 8))
-					   #'identity
-					   recv)))
-		     (unless (= #xda (aref recv-a 10))
-		       (error "packet wasn't successful: ~a"
-			      (list (format-packet p)
-				    (format-packet recv-a))))
-		     recv-a))
-	     *resp*))
-     (loop for (send recv) in (list (first *resp*)) collect
-	  (list
-	   (format-packet send)
-	   (format-packet recv)))))7
+     (read-available-bytes ,stream)))
+
+#+nil
+(defparameter recv (with-tcp stm
+		     (read-versions)))
+
+(make-dlp-packet-from-sequence recv)
+
+(defun make-dlp-packet-from-sequence (seq)
+  (let* ((payload-length (+ (elt seq 4)
+			    (* (elt seq 5) #x100)))
+	 (p (make-instance 'dlp-packet 
+			 :packet-type (elt seq 0)
+			 :cmd1 (elt seq 1)
+			 :cmd2 (elt seq 2)
+			 :flags (elt seq 3)
+			 :data-payload (subseq seq 6 (+ 6 payload-length)))))
+    (unless (= (length (data-payload p))
+	       payload-length)
+      (error "length doesn't match"))
+    (unless (= (elt seq (+ 6 payload-length))
+	       (checksum p))
+      (error "checksum test failed."))
+    p))
