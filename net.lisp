@@ -76,6 +76,19 @@
     (setf checksum (mod (+ packet-type cmd1 cmd2 flags payload-length
 			   (reduce #'+ data-payload)) #x100))))
 
+
+(defun ascii-code-p (num)
+  (<= (char-code #\Space) num (1+ (char-code #\}))))
+
+(defun are-numbers-ascii-p (payload)
+  "This is a simple heuristic, to print strings."
+  (let* ((chunk (remove-trailing-zeros payload))
+	 (ascii (remove-if-not #'ascii-code-p chunk)))
+    ;; when ascii and chunk have the same size, we look at a string
+    ;; otherwise, chunk will be bigger
+    (< .9 (/ (length ascii)
+	     (length chunk)))))
+
 (defmethod print-object ((obj dlp-packet) str)
   (with-slots (packet-type cmd1 cmd2 flags payload-length 
 			   data-payload checksum) obj
@@ -83,20 +96,31 @@
 				     cmd1 cmd2
 				     (parse-flags flags)
 				     ;payload-length 
-				     (convert-payload-to-string data-payload) 
+				     (if (are-numbers-ascii-p data-payload)
+					 (convert-payload-to-string data-payload)
+					 data-payload) 
 				     checksum))))
 
-(defun convert-payload-to-string (payload)
- (let ((trailing-zeros (loop for i from (1- (length payload)) downto 0
-			   when (= 0 (elt payload i)) count 1)))
-   (map 'string #'code-char
-	(subseq payload 
+
+(defun remove-trailing-zeros (ls)
+  (let ((trailing-zeros (loop for i from (1- (length ls)) downto 0
+			   when (= 0 (elt ls i)) count 1)))
+    (subseq ls 
 		0 
-		(- (length payload) 
-		   trailing-zeros)))))
+		(- (length ls) 
+		   trailing-zeros))))
+
+
+(defun convert-payload-to-string (payload)
+  (map 'string #'code-char
+	(remove-trailing-zeros payload)))
 
 (defun make-host-read-command (cmd1 cmd2 &key data)
-  (make-instance 'dlp-packet :packet-type #x4 :cmd1 cmd1 :cmd2 cmd2
+  (make-instance 'dlp-packet :packet-type 4 :cmd1 cmd1 :cmd2 cmd2
+		 :flags 0 :data-payload data))
+
+(defun make-host-write-command (cmd1 cmd2 &key data)
+  (make-instance 'dlp-packet :packet-type 2 :cmd1 cmd1 :cmd2 cmd2
 		 :flags 0 :data-payload data))
 
 (defun read-version (system)
@@ -196,3 +220,20 @@ answer---of type 0, 1, 3 or 5."
 	       (checksum p))
       (error "checksum test failed."))
     p))
+
+
+(defun read-video-mode-setting ()
+  (let ((resp (with-tcp stm (make-host-read-command 2 1))))
+    (make-dlp-packet-from-sequence resp)))
+#+nil
+(defparameter *vid-set* (read-video-mode-setting))
+;; 60Hz 8bit 1rgb
+
+(defun write-video-mode-setting (freq bits color)
+  (declare (type (integer 1 8) bits)
+	   (type (integer 1 4) color))
+  (let ((resp (with-tcp stm (make-host-write-command 2 1 :data 
+						     (list freq bits color)))))
+    (make-dlp-packet-from-sequence resp)))
+#+nil
+(defparameter *rep* (write-video-mode-setting 60 8 3))
