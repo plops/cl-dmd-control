@@ -10,7 +10,7 @@
 
 (let ((rot 0))
  (defun draw ()
-   (sleep (/ 64))
+   (sleep (/ 32))
    (destructuring-bind (w h) (glfw:get-window-size)
      (progn
        (viewport 0 0 w h)
@@ -22,49 +22,56 @@
        (clear-color 0 0 0 0)
        (line-width 1)
        (color 0 1 0)
-       #+nil
-       (let ((period 2))
+       
+       (let ((period 1)
+	     (width 1))
 	 (flet ((v (x)
 		  (vertex x 0) (vertex x h)))
 	   (with-pushed-matrix
+	     (scale .5 1 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate -45 0 0 1)
+	     
 	     (with-primitive :lines
 	       (dotimes (i 100) 
-		  (dotimes (j period)
-		    (v (+ (* .5 (sqrt 2) j)
-			  (* period (+ (* (sqrt 2) i)))))))))
+		  (dotimes (j width)
+		    (v (+ (* (sqrt 2) j)
+			  (* period (* (sqrt 2) i))))))))
 	   (with-pushed-matrix
+	     (scale .5 1 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate 45 0 0 1)
 	     (with-primitive :lines
 	       (dotimes (i 100) 
-		  (dotimes (j period)
-		    (v (+ (* .5 (sqrt 2) j)
-			  (* period (+ (* (sqrt 2) i)))))))))))
-       (with-primitive :points
-	 (vertex 200 200)
-	 (vertex 203 200)
-	 (vertex 206 200)
-	 (vertex 200 205)
-	 (vertex 202 205)
-	 (vertex 200 210)
-	 (vertex 201 210)
-	 (vertex 200 215)
-	 (vertex 200 216)
-	 (vertex 11 10)
-	 (vertex 11 14)
-	 (vertex 12 14)
-	 (vertex 11 19)
-	 (vertex 12 19)
-	 (vertex 13 19))
-
+		  (dotimes (j width)
+		    (v (+ (* (sqrt 2) j)
+			  (* period (* (sqrt 2) i))))))))))
        (with-pushed-matrix
-	(translate 10 10 0)
-	(with-primitive :points
-	  (dotimes (i 20)
-	    (dotimes (j 50)
-	      (vertex (* 4 i) (* 4 j))))))
+	 (scale .5 1 1)
+	 (translate 10 10 0)
+	 (with-primitive :points
+	   (vertex 200 200)
+	   (vertex 203 200)
+	   (vertex 206 200)
+	   (vertex 200 205)
+	   (vertex 202 205)
+	   (vertex 200 210)
+	   (vertex 201 210)
+	   (vertex 200 215)
+	   (vertex 200 216)
+	   (vertex 1 0)
+	   (vertex 1 4)
+	   (vertex 2 4)
+	   (vertex 1 8)
+	   (vertex 2 8)
+	   (vertex 3 8))
+
+	(with-pushed-matrix
+	  
+	  (with-primitive :points
+	    (dotimes (i 20)
+	      (dotimes (j 50)
+		(vertex (* 4 i) (* 4 j)))))))
        (incf rot 1)))))
 
 #+nil
