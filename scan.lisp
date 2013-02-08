@@ -30,7 +30,7 @@
 	      (expt (sin (/ rot 8.3)) 2))
       
        (let ((period 8)
-	     (width 15))
+	     (width 8))
 	 (flet ((v (x)
 		  (vertex x 0) (vertex x 1000)))
 	   (with-pushed-matrix

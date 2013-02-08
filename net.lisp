@@ -283,10 +283,11 @@ answer---of type 0, 1, 3 or 5."
     (make-dlp-packet-from-sequence resp)))
 
 #+nil
-(defparameter *dither* (read-dlpc3000-register #x7e))
-(defparameter *agc* (read-dlpc3000-register #x50))
-(defparameter *leda* (read-dlpc3000-register #x4b))
-(defparameter *led3* (read-dlpc3000-register #x16))
+(progn
+ (defparameter *dither* (read-dlpc3000-register #x7e))
+ (defparameter *agc* (read-dlpc3000-register #x50))
+ (defparameter *leda* (read-dlpc3000-register #x4b))
+ (defparameter *led3* (read-dlpc3000-register #x16)))
 
 (defun ensure-list-length (ls len)
   (subseq ls 0 (min 4 (length ls))))
@@ -313,13 +314,50 @@ answer---of type 0, 1, 3 or 5."
 #+nil
 (write-dlpc3000-register #x4b '(0 0 0 0))
 
-(write-dlpc3000-register #x50 '(0 0 0 6)) ; agc off
-(write-dlpc3000-register #x7e '(0 0 0 2)) ; temporal dither off
-(write-dlpc3000-register #x5e '(0 0 0 0)) ; color coordinate off
-(write-dlpc3000-register #x1e '(0 0 0 1)) ; lock to vsync
-(write-dlpc3000-register #x16 '(0 0 0 3)) ; red
-(write-dlpc3000-register #x4b '(#x14 #x15 #x16 #x24)) ;
-(write-dlpc3000-register #x4b '(#x25 #x11 #x12 #x13)) ;
+#+nil
+(read-dlpc3000-register #x82) ; sequencer
+
+(read-dlpc3000-register #x1e) ; vsync
+(read-dlpc3000-register #x83) ; seq 0 1 0 0
+(read-dlpc3000-register #x3a) ; busy
+(read-dlpc3000-register #x7e) ; dither
+
+(defun disable-video-processing ()
+  (list
+   (write-dlpc3000-register #x50 '(6 0 0 0))
+   (write-dlpc3000-register #x7e '(2 0 0 0))
+   (write-dlpc3000-register #x5e '(0 0 0 0))))
+
+#+nil
+(disable-video-processing)
 
 
-(read-dlpc3000-register #xb)
+
+(defun program-new-sequence (seq)
+  (unless (= 0 (first (data-payload (read-dlpc3000-register #x3a))))
+    (error "busy.")) ;; only continue if not busy
+  (write-dlpc3000-register #x39 (list seq 0 0 0)) ;; sequence number
+  (write-dlpc3000-register #x3a '(1 0 0 0))  ;; set busy
+  (write-dlpc3000-register #x38 '(#xc1 0 0 0))  ;; command to load new sequence
+  (sleep .1)
+  (unless (= 0 (first (data-payload (read-dlpc3000-register #x3a))))
+    (error "shouldn't be busy anymore.")))
+
+#+nil
+(loop for i below 100 do
+     (sleep .5)
+     (program-new-sequence 3))
+
+#+nil
+(progn
+  (write-dlpc3000-register #x50 '(0 0 0 6)) ; agc off
+ (write-dlpc3000-register #x7e '(0 0 0 2)) ; temporal dither off
+ (write-dlpc3000-register #x5e '(0 0 0 0)) ; color coordinate off
+ (write-dlpc3000-register #x1e '(0 0 0 1)) ; lock to vsync
+ (write-dlpc3000-register #x16 '(0 0 0 3)) ; red
+ (write-dlpc3000-register #x4b '(#x14 #x15 #x16 #x24)) ;
+ (write-dlpc3000-register #x4b '(#x25 #x11 #x12 #x13)) ;
+
+
+ (read-dlpc3000-register #xb)
+ )
