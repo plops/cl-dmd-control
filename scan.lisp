@@ -10,7 +10,7 @@
 
 (let ((rot 0))
  (defun draw ()
-   (sleep (/ 32))
+   (sleep (/ 64))
    (destructuring-bind (w h) (glfw:get-window-size)
      (progn
        (viewport 0 0 w h)
@@ -18,20 +18,23 @@
        (load-identity)
        (glu:ortho-2d 0 w 0 h)
        (matrix-mode :modelview)
+       (clear-color 1 1 1 1)
        (clear :color-buffer-bit)
-       (clear-color 0 0 0 0)
+       
        (line-width 1)
        
-       (color (expt (sin (/ rot 4.2)) 2) 
+       (color 0 0 0 1)
+
+       #+nil (color (expt (sin (/ rot 4.2)) 2) 
 	      (acos (expt (sin (/ rot 3.2)) 2))
 	      (expt (sin (/ rot 8.3)) 2))
-       
+      
        (let ((period 8)
-	     (width 4))
+	     (width 15))
 	 (flet ((v (x)
 		  (vertex x 0) (vertex x 1000)))
 	   (with-pushed-matrix
-	     ;(scale .5 1 1)
+	     (scale 1 2 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate -45 0 0 1)
 	     
@@ -39,21 +42,21 @@
 	       (dotimes (i 200) 
 		  (dotimes (j width)
 		    (v (+ (* .5 (sqrt 2) j)
-			  (* .5 (sqrt 2) (mod rot period))
+			  (* .5 (sqrt 2) (mod rot (* 2 period)))
 			  (* period (* (sqrt 2) i ))
 			  ))))))
-	   (with-pushed-matrix
-	     ;(scale .5 1 1)
+	   #+nil(with-pushed-matrix
+	     (scale 1 2 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate 45 0 0 1)
 	     (with-primitive :lines
 	       (dotimes (i 200) 
 		  (dotimes (j width)
 		    (v (+ (* .5 (sqrt 2) j)
-			   (* .5 (sqrt 2)  (mod rot period))
+			   ;(* .5 (sqrt 2)  (mod rot period))
 			  (* period (* (sqrt 2) i))))))))))
        (with-pushed-matrix
-	 ;(scale .5 1 1)
+	 (scale 1 2 1)
 	 (translate 10 10 0)
 	 (with-primitive :points
 	   (vertex 200 200)
