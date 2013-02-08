@@ -3,6 +3,7 @@
 (defpackage :g (:use :cl :sb-bsd-sockets))
 (in-package :g)
 
+(defvar *stm* nil)
 #+nil
 (progn
   (defparameter soc (make-instance 'inet-socket 
@@ -11,7 +12,7 @@
   (defparameter con (socket-connect 
 		     soc #(192 168 1 100) #x5555))
 
-  (defparameter stm (socket-make-stream soc 
+  (defparameter *stm* (socket-make-stream soc 
 					:input t
 					:output t
 					:element-type '(unsigned-byte 8))))
@@ -67,8 +68,7 @@
 	     :type (unsigned-byte 8))))
 
 (defmethod initialize-instance :after ((p dlp-packet) 
-				       &key (packet-type #x04)
-					 data-payload)
+				       &key)
   (with-slots (packet-type cmd1 cmd2 flags payload-length 
 			   data-payload
 			   checksum) p
@@ -86,8 +86,9 @@
 	 (ascii (remove-if-not #'ascii-code-p chunk)))
     ;; when ascii and chunk have the same size, we look at a string
     ;; otherwise, chunk will be bigger
-    (< .9 (/ (length ascii)
-	     (length chunk)))))
+    (unless (= 0 (length chunk)) 
+      (< .9 (/ (length ascii)
+	       (length chunk))))))
 
 (defmethod print-object ((obj dlp-packet) str)
   (with-slots (packet-type cmd1 cmd2 flags payload-length 
@@ -95,11 +96,14 @@
     (format str "<pkt~{ ~a~}>" (list (parse-packet-type packet-type)
 				     cmd1 cmd2
 				     (parse-flags flags)
-				     ;payload-length 
-				     (if (are-numbers-ascii-p data-payload)
+				     ;payload-length
+				     data-payload
+				     #+nil(if (are-numbers-ascii-p data-payload)
 					 (convert-payload-to-string data-payload)
 					 data-payload) 
-				     checksum))))
+				     checksum
+				     ;(parse-packet-all-types obj)
+				     ))))
 
 
 (defun remove-trailing-zeros (ls)
@@ -125,9 +129,9 @@
 
 (defun read-version (system)
   (make-host-read-command 1 0 :data (list (ecase system
-					    ('arm 0)
-					    ('fpga #x10)
-					    ('msp #x20)))))
+					    (arm 0)
+					    (fpga #x10)
+					    (msp #x20)))))
 #+nil
 (read-version 'arm)
 
@@ -153,11 +157,12 @@
 (force-output stm)
 
 
-(defmacro with-tcp (stream &body body)
-  `(let ((p ,@body))
-     (write-sequence (convert-to-sequence p) ,stream)
-     (force-output ,stream)
-     (read-available-bytes ,stream)))
+(defmacro with-tcp (&body body)
+  `(let ((p ,@body)
+	 (stream *stm*))
+     (write-sequence (convert-to-sequence p) stream)
+     (force-output stream)
+     (read-available-bytes stream)))
 
 #+nil
 (defparameter recv (with-tcp stm
@@ -193,16 +198,43 @@
     (4 'rreq)
     (5 'rans)))
 
-(defmethod parse-packet-type ((p dlp-packet) &optional request)
+(defun parse-error-payload (err)
+  (ecase err
+    (1 'unknown)
+    (2 'invalid-command)
+    (3 'invalid-parameter)
+    (4 'out-of-memory)
+    (5 'hardware-fail)
+    (6 'hardware-busy)
+    (7 'not-initialized)
+    (8 'object-not-found)
+    (9 'checksum-error)
+    (#xa 'packet-format-error)
+    (#xb 'continuation-error)))
+
+(defmethod parse-type-error-response ((p dlp-packet) request)
+  (with-slots (packet-type cmd1 cmd2 payload-length flags
+			   data-payload) p
+    (unless (= packet-type 1)
+      (error "no error response packet"))
+    (when request
+     (unless (and (= cmd1 (cmd1 request))
+		  (= cmd2 (cmd2 request)))
+       (error "response cmd1 and cmd2 do not match request packet.")))
+    (unless (= 1 payload-length)
+      (error "response doesn't contain the expected byte."))
+    (parse-error-payload (elt data-payload 0))))
+
+(defmethod parse-packet-all-types ((p dlp-packet) &optional request)
   "Dispatch to different functions depending on the packet type. We do
 extra checks if you supply the request packet, when P is an
 answer---of type 0, 1, 3 or 5."
   (ecase (packet-type p)
-    (0 (parse-type-busy p request))
-    (1 (parse-type-error p request))
-    (2 (parse-type-write p))
-    (3 (parse-type-write-response p request))
-    (4 (parse-type-read p))
+    ;(0 (parse-type-busy-response p request))
+    (1 (parse-type-error-response p request))
+    ;(2 (parse-type-write p))
+    ;(3 (parse-type-write-response p request))
+    ;(4 (parse-type-read p))
     (5 (parse-type-read-response p request))))
 
 
@@ -223,7 +255,7 @@ answer---of type 0, 1, 3 or 5."
 
 
 (defun read-video-mode-setting ()
-  (let ((resp (with-tcp stm (make-host-read-command 2 1))))
+  (let ((resp (with-tcp (make-host-read-command 2 1))))
     (make-dlp-packet-from-sequence resp)))
 #+nil
 (defparameter *vid-set* (read-video-mode-setting))
@@ -232,8 +264,62 @@ answer---of type 0, 1, 3 or 5."
 (defun write-video-mode-setting (freq bits color)
   (declare (type (integer 1 8) bits)
 	   (type (integer 1 4) color))
-  (let ((resp (with-tcp stm (make-host-write-command 2 1 :data 
+  (let ((resp (with-tcp (make-host-write-command 2 1 :data 
 						     (list freq bits color)))))
     (make-dlp-packet-from-sequence resp)))
 #+nil
 (defparameter *rep* (write-video-mode-setting 60 8 3))
+
+
+#+nil
+(defparameter *led* (read-led-current-setting))
+(defun read-led-current-setting ()
+  (let ((resp (with-tcp (make-host-read-command 1 4))))
+    (make-dlp-packet-from-sequence resp)))
+; 18 1 18 1 18 1 ; data is always little endian,  12 1 would be default (274, 633mA)
+
+(defun read-dlpc3000-register (reg)
+  (let ((resp (with-tcp (make-host-read-command #xff 0 :data (list reg)))))
+    (make-dlp-packet-from-sequence resp)))
+
+#+nil
+(defparameter *dither* (read-dlpc3000-register #x7e))
+(defparameter *agc* (read-dlpc3000-register #x50))
+(defparameter *leda* (read-dlpc3000-register #x4b))
+(defparameter *led3* (read-dlpc3000-register #x16))
+
+(defun ensure-list-length (ls len)
+  (subseq ls 0 (min 4 (length ls))))
+#+nil
+(list
+ (ensure-list-length '(1 2 3 4 5) 4)
+ (ensure-list-length '(1 2 3) 4))
+
+(defun write-dlpc3000-register (reg data)
+  (let ((resp (with-tcp
+		(make-host-write-command #xff 0
+					 :data 
+					 (append (list reg)
+						 (ensure-list-length data 4))))))
+    (make-dlp-packet-from-sequence resp)))
+
+#+nil
+(defparameter *bla*
+ (write-dlpc3000-register #x16 '(#b101)))
+#+nil
+(defparameter *bla2*
+ (write-dlpc3000-register #x4b '(#x14 #x15 #x16 #x24)))
+
+#+nil
+(write-dlpc3000-register #x4b '(0 0 0 0))
+
+(write-dlpc3000-register #x50 '(0 0 0 6)) ; agc off
+(write-dlpc3000-register #x7e '(0 0 0 2)) ; temporal dither off
+(write-dlpc3000-register #x5e '(0 0 0 0)) ; color coordinate off
+(write-dlpc3000-register #x1e '(0 0 0 1)) ; lock to vsync
+(write-dlpc3000-register #x16 '(0 0 0 3)) ; red
+(write-dlpc3000-register #x4b '(#x14 #x15 #x16 #x24)) ;
+(write-dlpc3000-register #x4b '(#x25 #x11 #x12 #x13)) ;
+
+
+(read-dlpc3000-register #xb)
