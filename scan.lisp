@@ -37,12 +37,15 @@
 	     (scale 1 2 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate -45 0 0 1)
-	     
+	     ;; perhaps, in order to show more complicated images with
+	     ;; their pixels accurately mapped to the DMD, i should
+	     ;; write them into a texture and then display the texture
+	     ;; at -45 degree orientation
 	     (with-primitive :lines
 	       (dotimes (i 200) 
 		  (dotimes (j width)
 		    (v (+ (* .5 (sqrt 2) j)
-			  (* .5 (sqrt 2) (mod rot (* 2 period)))
+			  ;(* .5 (sqrt 2) (mod rot (* 2 period)))
 			  (* period (* (sqrt 2) i ))
 			  ))))))
 	   #+nil(with-pushed-matrix
