@@ -39,6 +39,14 @@ int vid_get_thread_type(Vid*v){return v->avctx->thread_type;}
 int vid_get_active_thread_type(Vid*v){return v->avctx->active_thread_type;}
 void vid_set_active_thread_type(Vid*v,int i){v->avctx->active_thread_type=i;}
 
+/* copy n bytes of data into a pinned lisp array buf */
+void vid_copy_data(Vid*v,int i,int n,char*buf)
+{
+  int j;
+  for(j=0;j<n;j++)
+    buf[j]=v->pict.data[i][j];
+}
+
 static int lockmgr(void**mutex,enum AVLockOp op)
 {
   pthread_mutex_t **m = (pthread_mutex_t**) mutex;
@@ -167,6 +175,7 @@ int vid_decode_frame(Vid*v)
   pthread_mutex_unlock(&m);
   return 1;
 }
+
 
 int main()
 {

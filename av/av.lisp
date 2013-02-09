@@ -30,6 +30,8 @@
 (cffi:defcfun "vid_get_out_width" :int (handle :uint64))
 (cffi:defcfun "vid_get_out_height" :int (handle :uint64))
 (cffi:defcfun "vid_get_data" (:pointer :uint8) (handle :uint64) (i :int))
+(cffi:defcfun "vid_copy_data" :void (handle :uint64)
+	      (array-index :int) (buf-bytes :int) (buf (:pointer :uint8)))
 (cffi:defcfun "vid_get_linesize" :int (handle :uint64) (i :int))
 (cffi:defcfun "vid_get_thread_count" :int (handle :uint64))
 (cffi:defcfun "vid_get_thread_type" :int (handle :uint64))
@@ -112,6 +114,7 @@
 			     (vid-get-thread-count h)
 			     (vid-get-thread-type h)
 			     (vid-get-active-thread-type h)))
+      (init-threshold-arrays dw dh)
       h))
   
   (defun load-all-videos ()
@@ -163,36 +166,16 @@
 		     gl:+rgba+ 
 		     gl:+unsigned-byte+
 		     (vid-get-data h 0)))
-    (defun threshold-frame-into-texture (h obj)
-    (gl:bind-texture gl:+texture-2d+ obj)
-    (let* ((a (make-array (list dh dw) :element-type '(unsigned-byte 32)))
-	   (a1 (sb-ext:array-storage-vector a))
-	   (p (vid-get-data h 0)))
-      ;; the 32bit contain aabbggrr
-      (dotimes (i (length a1))
-	(dotimes (j 32)
-	 (setf (aref a1 i)
-	       (threshold-pixel-into-rgba (ldb (byte 8 8)
-					       (cffi:mem-aref p :uint32 i))
-					  j (aref a1 i))))) 
-      (gl:tex-image-2d gl:+texture-2d+ 0 
-		       gl:+rgba+
-		       dw
-		       dh
-		       0
-					; #x80e1 ;; bgra
-		       gl:+rgba+ 
-		       gl:+unsigned-byte+
-		       (sb-sys:vector-sap a1))))
-  (defun draw-quad (w h)
-    (gl:with-begin gl:+quads+ 
-      (labels ((c (a b)
-		 (gl:tex-coord-2f (/ a w)  (/ b h))
-		 (gl:vertex-2f a b)))
-	(c 0 0)
-	(c 0 h)
-	(c w h)
-	(c w 0))))
+    
+    (defun draw-quad (w h)
+      (gl:with-begin gl:+quads+ 
+	(labels ((c (a b)
+		   (gl:tex-coord-2f (/ a w)  (/ b h))
+		   (gl:vertex-2f a b)))
+	  (c 0 0)
+	  (c 0 h)
+	  (c w h)
+	  (c w 0))))
   (defun draw ()
     (gl:clear-color .9 .2 .2 1)
     (gl:clear (logior gl:+color-buffer-bit+ gl:+depth-buffer-bit+))
@@ -208,18 +191,47 @@
     (let* ((objs (create-gl-texture-objects (length *h*))))
       (gl:enable gl:+texture-2d+)
       
-      (let ((h (decode-frame (first *h*))))
-	(threshold-frame-into-texture h (aref objs 0)))
+      (dotimes (j 24)
+       (let ((h (decode-frame (first *h*))))
+	 (threshold-frame-into-texture h (aref objs 0) j)))
       (draw-quad dw dh)
       
       (gl:disable gl:+texture-2d+)
       (gl:delete-textures (length objs) objs))))
 
-
+(let (src dst)
+  (defun init-threshold-arrays (w h)
+    (unless (and src dst
+		 (= h (array-dimension src 0))
+		 (= w (array-dimension src 1)))
+      (setf src (make-array (list h w) 
+			    :element-type '(unsigned-byte 32))
+	    dst (make-array (list h w) 
+			    :element-type '(unsigned-byte 32)))))
+  (defun threshold-frame-into-texture (vid obj frame-number)
+    (declare (type (simple-array (unsigned-byte 32) 2) src dst))
+    (gl:bind-texture gl:+texture-2d+ obj)
+    (destructuring-bind (h w) (array-dimensions src)
+     (let* ((src1 (sb-ext:array-storage-vector src))
+	    (dst1 (sb-ext:array-storage-vector dst)))
+       (sb-sys:with-pinned-objects (src1)
+	 (vid-copy-data vid 0 (length src1) (sb-sys:vector-sap src1)))
+       (dotimes (i (length src1))
+	 (setf (ldb (byte 1 frame-number) (aref dst1 i))
+	       (ldb (byte 1 15) (aref src1 i)) ;; bit 15 is the msb of green
+	       ))
+       (sb-sys:with-pinned-objects (dst1)
+	 (gl:tex-image-2d gl:+texture-2d+ 0 
+			  gl:+rgba+
+			  w h 0
+			  ;; #x80e1 ;; bgra
+			  gl:+rgba+ 
+			  gl:+unsigned-byte+
+			  (sb-sys:vector-sap dst1)))))))
 
 #+nil
 (glfw:do-window (:title "bla" :width (floor 960 5) :height (floor 540 5))
-    ()
+    ((glfw:set-window-pos (- 608 (floor 960 5)) 0))
   (when (eql (glfw:get-key glfw:+key-esc+) glfw:+press+)
     (return-from glfw::do-open-window))
   (draw))
