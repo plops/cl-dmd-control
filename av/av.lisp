@@ -43,7 +43,6 @@
 (defvar *h* nil) ;; contains a list of currently played videos
 (defvar *vids* nil) ;; contains a list of all available videos
 
-#+nil
 (defparameter *vids*
   (mapcar #'first
 	  (mapcar #'(lambda (x)
@@ -164,6 +163,23 @@
 		     gl:+rgba+ 
 		     gl:+unsigned-byte+
 		     (vid-get-data h 0)))
+    (defun threshold-frame-into-texture (h obj)
+    (gl:bind-texture gl:+texture-2d+ obj)
+    (let* ((a (make-array (list dh dw) :element-type '(unsigned-byte 32)))
+	   (a1 (sb-ext:array-storage-vector a))
+	   (p (vid-get-data h 0)))
+      (dotimes (i (length a1))
+	(setf (aref a1 i)
+	      (floor (cffi:mem-aref p :uint32 i) 2)))
+      (gl:tex-image-2d gl:+texture-2d+ 0 
+		       gl:+rgba+
+		       dw
+		       dh
+		       0
+					; #x80e1 ;; bgra
+		       gl:+rgba+ 
+		       gl:+unsigned-byte+
+		       (sb-sys:vector-sap a1))))
   (defun draw-quad (w h)
     (gl:with-begin gl:+quads+ 
       (labels ((c (a b)
@@ -187,11 +203,10 @@
 
     (let* ((objs (create-gl-texture-objects (length *h*))))
       (gl:enable gl:+texture-2d+)
-      (loop for i from 0 and h in *h* do
-	   (when h
-	     (setf h (decode-frame h))
-	     (copy-frame-to-texture h (aref objs i))
-	     (draw-quad dw dh)))
+      
+      (let ((h (decode-frame (first *h*))))
+	(threshold-frame-into-texture h (aref objs 0)))
+      (draw-quad dw dh)
       
       (gl:disable gl:+texture-2d+)
       (gl:delete-textures (length objs) objs))))
