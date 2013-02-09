@@ -8,9 +8,10 @@
 
 (in-package :disp)
 
+
 (let ((rot 0))
  (defun draw ()
-   (sleep (/ 64))
+ ;  (sleep (/ 64))
    (destructuring-bind (w h) (glfw:get-window-size)
      (progn
        (viewport 0 0 w h)
@@ -18,17 +19,48 @@
        (load-identity)
        (glu:ortho-2d 0 w 0 h)
        (matrix-mode :modelview)
-       (clear-color 1 1 1 1)
+       (clear-color 0 0 0 1)
        (clear :color-buffer-bit)
        
        (line-width 1)
        
-       (color 0 0 0 1)
+     
 
        #+nil (color (expt (sin (/ rot 4.2)) 2) 
 	      (acos (expt (sin (/ rot 3.2)) 2))
 	      (expt (sin (/ rot 8.3)) 2))
       
+       
+       (let ((period 8)
+	     (width 24))
+	 (flet ((v (x)
+		  (vertex x 0) (vertex x 1000)))
+	   (with-pushed-matrix
+	     (scale 1 2 1)
+	     (translate (floor w 4) (floor h -4) 0)
+	     (rotate -45 0 0 1)
+	     
+	     (with-primitive :lines
+	       (dotimes (i 1) 
+		  (dotimes (j width)
+		    (let* ((v (ash 1 (- 23 j))) ;; it was quite
+						;; difficult to get
+						;; this right, i
+						;; wiggled a piece of
+						;; paper in the beam
+						;; to check if the
+						;; line was continuous
+			   (r (ldb (byte 8 16) v))
+			   (g (ldb (byte 8 8) v))
+			   (b (ldb (byte 8 0) v)))
+		     (%gl:color-3ub b g r))
+		    (v (+ (* .5 (sqrt 2) j)
+			  (* width -.5 (sqrt 2) (mod rot (* 2 period)))
+			 ; (* period (* (sqrt 2) i ))
+			  ))))))))
+
+
+       #+nil
        (let ((period 8)
 	     (width 8))
 	 (flet ((v (x)
@@ -48,7 +80,7 @@
 			  ;(* .5 (sqrt 2) (mod rot (* 2 period)))
 			  (* period (* (sqrt 2) i ))
 			  ))))))
-	   #+nil(with-pushed-matrix
+	   (with-pushed-matrix
 	     (scale 1 2 1)
 	     (translate (floor w 4) (floor h 4) 0)
 	     (rotate 45 0 0 1)

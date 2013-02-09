@@ -315,13 +315,14 @@ answer---of type 0, 1, 3 or 5."
 (write-dlpc3000-register #x4b '(0 0 0 0))
 
 #+nil
-(read-dlpc3000-register #x82) ; sequencer
+(progn
+  (read-dlpc3000-register #x82)		; sequencer
 
-(read-dlpc3000-register #x1e) ; vsync
-(read-dlpc3000-register #x83) ; seq 0 1 0 0
-(read-dlpc3000-register #x3a) ; busy
-(read-dlpc3000-register #x7e) ; dither
-
+ (read-dlpc3000-register #x1e)		; vsync
+ (read-dlpc3000-register #x83)		; seq 0 1 0 0
+ (read-dlpc3000-register #x3a)		; busy
+ (read-dlpc3000-register #x7e)		; dither
+ )
 (defun disable-video-processing ()
   (list
    (write-dlpc3000-register #x50 '(6 0 0 0))
@@ -342,6 +343,10 @@ answer---of type 0, 1, 3 or 5."
   (sleep .1)
   (unless (= 0 (first (data-payload (read-dlpc3000-register #x3a))))
     (error "shouldn't be busy anymore.")))
+
+#+nil
+(program-new-sequence 14
+) ;; 24 times 1bit mono
 
 #+nil
 (loop for i below 100 do
