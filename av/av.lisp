@@ -82,7 +82,7 @@
 (declaim (inline threshold-pixel-into-rgba))
 (defun threshold-pixel-into-rgba (v j col)
   (declare (type (unsigned-byte 32) col)
-	   (type (integer 0 23) j)
+	   (type (integer 0 31) j)
 	   (type (unsigned-byte 8) v))
   (the (unsigned-byte 32)
    (setf (ldb (byte 1 j) col)
@@ -168,9 +168,13 @@
     (let* ((a (make-array (list dh dw) :element-type '(unsigned-byte 32)))
 	   (a1 (sb-ext:array-storage-vector a))
 	   (p (vid-get-data h 0)))
+      ;; the 32bit contain aabbggrr
       (dotimes (i (length a1))
-	(setf (aref a1 i)
-	      (floor (cffi:mem-aref p :uint32 i) 2)))
+	(dotimes (j 32)
+	 (setf (aref a1 i)
+	       (threshold-pixel-into-rgba (ldb (byte 8 8)
+					       (cffi:mem-aref p :uint32 i))
+					  j (aref a1 i))))) 
       (gl:tex-image-2d gl:+texture-2d+ 0 
 		       gl:+rgba+
 		       dw
