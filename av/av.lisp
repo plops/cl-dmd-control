@@ -2,7 +2,7 @@
 
 (eval-when (:compile-toplevel :execute :load-toplevel)
   (require :cl-glfw)
-  (require :cl-glfw-opengl-version_1_1)
+;  (require :cl-glfw-opengl-version_1_1)
   (require :cl-glfw-glu))
 
 (defpackage :v
@@ -44,6 +44,7 @@
 (defvar *h2* nil)
 (defvar *vids* nil)
 
+#+nil
 (defparameter *vids*
   (mapcar #'first
 	  (mapcar #'(lambda (x)
@@ -51,24 +52,20 @@
 			     (with-open-file (s x)
 			       (file-length s))))
 		   (directory 
-		    (merge-pathnames #p"*/*.*" "/dev/shm/")))
-	  #+nil(sort 
-	   
-	   #'>
-	   :key #'second)))
+		    (merge-pathnames #p"*/*.*" "/dev/shm/r/")))))
 
 #+nil
 (vid-libinit)
 
 (let ((vids *vids*))
   (defun get-vids () vids)
- (defun grab-vid ()
-   (if (= (length vids) 0)
-       nil
-       (let ((r (elt vids (random (length vids)))))
-	 (setf vids
-	       (set-difference vids (list r)))
-	 r))))
+  (defun grab-vid ()
+    (if (= (length vids) 0)
+	nil
+	(let ((r (elt vids (random (length vids)))))
+	  (setf vids
+		(set-difference vids (list r)))
+	  r))))
 
 
 (let ((t1 0d0)
@@ -78,7 +75,7 @@
    (setf t1 (glfw:get-time))
    (when (or (< 1 (- t1 t0))
              (= frames 0))
-     (glfw:set-window-title (format nil "bla ~,1f FPS"
+     (glfw:set-window-title (format nil "video ~,1f FPS"
                                     (/ frames (- t1 t0))))
      (setf frames 0
            t0 t1))
