@@ -345,7 +345,7 @@ answer---of type 0, 1, 3 or 5."
     (error "shouldn't be busy anymore.")))
 
 #+nil
-(program-new-sequence 14
+(program-new-sequence 12
 ) ;; 24 times 1bit mono
 
 #+nil
