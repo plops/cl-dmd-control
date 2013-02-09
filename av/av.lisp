@@ -40,9 +40,8 @@
  
 
 
-(defvar *h* nil)
-(defvar *h2* nil)
-(defvar *vids* nil)
+(defvar *h* nil) ;; contains a list of currently played videos
+(defvar *vids* nil) ;; contains a list of all available videos
 
 #+nil
 (defparameter *vids*
@@ -75,107 +74,115 @@
    (setf t1 (glfw:get-time))
    (when (or (< 1 (- t1 t0))
              (= frames 0))
-     (glfw:set-window-title (format nil "video ~,1f FPS"
+     (glfw:set-window-title (format nil "~,1f FPS"
                                     (/ frames (- t1 t0))))
      (setf frames 0
            t0 t1))
    (incf frames)))
 
-(let ((start t))
+(declaim (inline threshold-pixel-into-rgba))
+(defun threshold-pixel-into-rgba (v j col)
+  (declare (type (unsigned-byte 32) col)
+	   (type (integer 0 23) j)
+	   (type (unsigned-byte 8) v))
+  (the (unsigned-byte 32)
+   (setf (ldb (byte 1 j) col)
+	 (if (< 127 v) 1 0))))
+
+
+(let* ((start t)
+       (vw 960)
+       (vh 540)
+       (dec 1)
+       (dw (floor vw dec))
+       (dh (floor vh dec)))
+  
+  (defun open-new-video ()
+    (let ((h (vid-alloc)) ;; h will be freed when vid-close is
+	  ;; called in decode-frame
+	  )
+      (loop with r = -1
+	 do 
+	   (setf r (vid-init h
+			     (format nil "~a" (grab-vid))
+			     dw dh))
+	 while (< r 0))
+      ;;(vid-set-active-thread-type hnew 1)
+      (vid-decode-frame h)
+      (format t "~a~%" (list (vid-get-width h) (vid-get-height h)
+			     (vid-get-thread-count h)
+			     (vid-get-thread-type h)
+			     (vid-get-active-thread-type h)))
+      h))
+  
   (defun load-all-videos ()
-      (setf start nil)
-      (vid-libinit)
-      (when *h*
-	(loop for i below (length *h*) do
+    (setf start nil)
+    (vid-libinit)
+    (when *h*
+      (loop for i below (length *h*) do
 	   (vid-close (elt *h* i))))
-      (progn
-	(defparameter *h*
-	  (loop for e in (loop for i below (min 1
-						(length *vids*)) collect
-			      (grab-vid)) collect
-	       (let ((h (vid-alloc)))
-		 (format t "~a~%" (list e))
-		 (let ((r (vid-init h (format nil "~a" e) 128 128)))
-		   (loop while (< r 0)
-		      do
-			(setf r (vid-init h (format nil "~a" (grab-vid))
-					  256 256))))
-		 (vid-decode-frame h)
-		 ;;(vid-set-active-thread-type h 1)
-		 (format t "~a~%" (list (vid-get-width h) (vid-get-height h)
-					(vid-get-thread-count h)
-					(vid-get-thread-type h)
-					(vid-get-active-thread-type h)))
-		 h)))
-	(format t "finished~%")))
+    (defparameter *h*
+      (loop for e in (loop for i below (min 1
+					    (length *vids*)) collect
+			  (grab-vid)) collect
+	   (open-new-video))))
   (defun setup-gl-coordinate-system ()
     (destructuring-bind (w h) (glfw:get-window-size)
       (setf h (max h 1))
       (gl:viewport 0 0 w h)
-      (gl:clear-color .2 .2 .2 1)
-      (gl:clear (logior gl:+color-buffer-bit+ gl:+depth-buffer-bit+))
       (gl:matrix-mode gl:+projection+)
       (gl:load-identity)
-      (gl:ortho 0 256 256 0 .01 10)
+      (gl:ortho 0 dw dh 0 .01 10)
       (gl:matrix-mode gl:+modelview+)
       (gl:load-identity)))
   (defun create-gl-texture-objects (n)
-	  (let ((objs (make-array n :element-type '(unsigned-byte 32))))
-	    (gl:gen-textures (length objs) objs)
-	    (dotimes (i  (length objs)) 
-	      (gl:bind-texture gl:+texture-2d+ (aref objs i))
-	      ;;(gl:pixel-store-i gl:+unpack-alignment+ 1)
-	      (gl:tex-parameter-i gl:+texture-2d+ 
-				  gl:+texture-min-filter+ gl:+nearest+)
-	      (gl:tex-parameter-i gl:+texture-2d+ 
-				  gl:+texture-mag-filter+ gl:+nearest+))
-	    objs))
+    (let ((objs (make-array n :element-type '(unsigned-byte 32))))
+      (gl:gen-textures (length objs) objs)
+      (dotimes (i  (length objs)) 
+	(gl:bind-texture gl:+texture-2d+ (aref objs i))
+	;;(gl:pixel-store-i gl:+unpack-alignment+ 1)
+	(gl:tex-parameter-i gl:+texture-2d+ 
+			    gl:+texture-min-filter+ gl:+nearest+)
+	(gl:tex-parameter-i gl:+texture-2d+ 
+			    gl:+texture-mag-filter+ gl:+nearest+))
+      objs))
   
   (defun decode-frame (h)
     (when (= 0 (vid-decode-frame h))
       (format t "closing video ~a~%" h)
       (vid-close h)
-      (let ((hnew (vid-alloc))
-	    (fn (format nil "~a" (grab-vid))))
-	(format t "openingb ~a~%" fn)
-	(let ((r (vid-init hnew fn 256 256)))
-	  (loop while (< r 0)
-	     do
-	       (setf r (vid-init hnew
-				 (format nil "~a" (grab-vid))
-				 256 256))))
-	;;(vid-set-active-thread-type hnew 1)
-	(vid-decode-frame hnew)
-	(setf (elt *h* i) hnew)
-	(setf h hnew)))
+      (setf h (open-new-video)))
     h)
   (defun copy-frame-to-texture (h obj)
     (gl:bind-texture gl:+texture-2d+ obj)
     (gl:tex-image-2d gl:+texture-2d+ 0 
 		     gl:+rgba+
-		     256
-		     256
+		     dw
+		     dh
 		     0
 					; #x80e1 ;; bgra
 		     gl:+rgba+ 
 		     gl:+unsigned-byte+
 		     (vid-get-data h 0)))
-  (defun draw-quad (ww hh)
+  (defun draw-quad (w h)
     (gl:with-begin gl:+quads+ 
       (labels ((c (a b)
-		 (gl:tex-coord-2f (/ a ww)  (/ b hh))
+		 (gl:tex-coord-2f (/ a w)  (/ b h))
 		 (gl:vertex-2f a b)))
 	(c 0 0)
-	(c 0 hh)
-	(c ww hh)
-	(c ww 0))))
+	(c 0 h)
+	(c w h)
+	(c w 0))))
   (defun draw ()
+    (gl:clear-color .9 .2 .2 1)
+    (gl:clear (logior gl:+color-buffer-bit+ gl:+depth-buffer-bit+))
+      
     (count-fps)
     (when start
       (load-all-videos))
     (setup-gl-coordinate-system)
     (gl:translate-f 0 0 -1)
-;    (gl:scale-f (sqrt 2) 1 1)
+					;    (gl:scale-f (sqrt 2) 1 1)
     (gl:rotate-f 0 0 0 1)
 
     (let* ((objs (create-gl-texture-objects (length *h*))))
@@ -184,7 +191,7 @@
 	   (when h
 	     (setf h (decode-frame h))
 	     (copy-frame-to-texture h (aref objs i))
-	     (draw-quad 256 256)))
+	     (draw-quad dw dh)))
       
       (gl:disable gl:+texture-2d+)
       (gl:delete-textures (length objs) objs))))
@@ -192,7 +199,7 @@
 
 
 #+nil
-(glfw:do-window (:title "bla" :width 256 :height 256)
+(glfw:do-window (:title "bla" :width (floor 960 5) :height (floor 540 5))
     ()
   (when (eql (glfw:get-key glfw:+key-esc+) glfw:+press+)
     (return-from glfw::do-open-window))
