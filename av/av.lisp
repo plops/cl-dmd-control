@@ -94,10 +94,15 @@
 (let* ((start t)
        (vw 960)
        (vh 540)
-       (dec 1)
+       (dec 5)
        (dw (floor vw dec))
        (dh (floor vh dec)))
-  
+  (defun set-video-sizes (w h decimate)
+    (setf vw w
+	  vh h
+	  dec decimate
+	  dw (floor vw dec)
+	  dh (floor vh dec)))
   (defun open-new-video ()
     (let ((h (vid-alloc)) ;; h will be freed when vid-close is
 	  ;; called in decode-frame
@@ -114,7 +119,6 @@
 			     (vid-get-thread-count h)
 			     (vid-get-thread-type h)
 			     (vid-get-active-thread-type h)))
-      (init-threshold-arrays dw dh)
       h))
   
   (defun load-all-videos ()
@@ -190,7 +194,8 @@
 
     (let* ((objs (create-gl-texture-objects (length *h*))))
       (gl:enable gl:+texture-2d+)
-      
+
+      (init-threshold-arrays dw dh)
       (dotimes (j 24)
        (let ((h (decode-frame (first *h*))))
 	 (threshold-frame-into-texture h (aref objs 0) j)))
@@ -209,13 +214,16 @@
 	    dst (make-array (list h w) 
 			    :element-type '(unsigned-byte 32)))))
   (defun threshold-frame-into-texture (vid obj frame-number)
-    (declare (type (simple-array (unsigned-byte 32) 2) src dst))
+    (declare
+     (optimize (speed 3))
+     (type (simple-array (unsigned-byte 32) 2) src dst)
+     (type (integer 0 24) frame-number))
     (gl:bind-texture gl:+texture-2d+ obj)
     (destructuring-bind (h w) (array-dimensions src)
      (let* ((src1 (sb-ext:array-storage-vector src))
 	    (dst1 (sb-ext:array-storage-vector dst)))
        (sb-sys:with-pinned-objects (src1)
-	 (vid-copy-data vid 0 (length src1) (sb-sys:vector-sap src1)))
+	 (vid-copy-data vid 0 (* 4 (length src1)) (sb-sys:vector-sap src1)))
        (dotimes (i (length src1))
 	 (setf (ldb (byte 1 frame-number) (aref dst1 i))
 	       (ldb (byte 1 15) (aref src1 i)) ;; bit 15 is the msb of green
@@ -230,9 +238,14 @@
 			  (sb-sys:vector-sap dst1)))))))
 
 #+nil
-(glfw:do-window (:title "bla" :width (floor 960 5) :height (floor 540 5))
-    ((glfw:set-window-pos (- 608 (floor 960 5)) 0))
-  (when (eql (glfw:get-key glfw:+key-esc+) glfw:+press+)
-    (return-from glfw::do-open-window))
-  (draw))
+(let* ((w 960) (h 540)
+       (dec 5) 
+       (dw (floor w dec))
+       (dh (floor h dec)))
+  (set-video-sizes w h dec)
+  (glfw:do-window (:title "bla" :width dw :height dh)
+     ((glfw:set-window-pos (- 608 dw) 0))
+   (when (eql (glfw:get-key glfw:+key-esc+) glfw:+press+)
+     (return-from glfw::do-open-window))
+   (draw)))
 
