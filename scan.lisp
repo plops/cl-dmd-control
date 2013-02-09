@@ -19,7 +19,7 @@
        (load-identity)
        (glu:ortho-2d 0 w 0 h)
        (matrix-mode :modelview)
-       (clear-color 0 0 0 1)
+       (clear-color 1 1 1 1)
        (clear :color-buffer-bit)
        
        (line-width 1)
@@ -41,6 +41,14 @@
 	     (rotate -45 0 0 1)
 	     
 	     (with-primitive :lines
+	       (color 0 0 0)
+	       (v (+ (* .5 (sqrt 2) -1)
+			  
+			  ))
+	       (v (+ (* .5 (sqrt 2) 1)
+			  (* width .5 (sqrt 2) 10)
+			  ))
+
 	       (dotimes (i 1) 
 		  (dotimes (j width)
 		    (let* ((v (ash 1 j))
@@ -48,45 +56,13 @@
 			   (r (ldb (byte 8 8) v))
 			   (b (ldb (byte 8 0) v)))
 		     (%gl:color-3ub r g b)) ;; blue is shown first
-		    (v (+ (* 2 .5 (sqrt 2) j)
-			  (* 2 width .5 (sqrt 2) (mod rot 10))
-			 ; (* period (* (sqrt 2) i ))
+		    (v (+ (* .5 (sqrt 2) j)
+			  (* width .5 (sqrt 2) (mod rot 10))
 			  ))))))))
 
-
-       #+nil
-       (let ((period 8)
-	     (width 8))
-	 (flet ((v (x)
-		  (vertex x 0) (vertex x 1000)))
-	   (with-pushed-matrix
-	     (scale 1 2 1)
-	     (translate (floor w 4) (floor h 4) 0)
-	     (rotate -45 0 0 1)
-	     ;; perhaps, in order to show more complicated images with
-	     ;; their pixels accurately mapped to the DMD, i should
-	     ;; write them into a texture and then display the texture
-	     ;; at -45 degree orientation
-	     (with-primitive :lines
-	       (dotimes (i 200) 
-		  (dotimes (j width)
-		    (v (+ (* .5 (sqrt 2) j)
-			  ;(* .5 (sqrt 2) (mod rot (* 2 period)))
-			  (* period (* (sqrt 2) i ))
-			  ))))))
-	   (with-pushed-matrix
-	     (scale 1 2 1)
-	     (translate (floor w 4) (floor h 4) 0)
-	     (rotate 45 0 0 1)
-	     (with-primitive :lines
-	       (dotimes (i 200) 
-		  (dotimes (j width)
-		    (v (+ (* .5 (sqrt 2) j)
-			   ;(* .5 (sqrt 2)  (mod rot period))
-			  (* period (* (sqrt 2) i))))))))))
        (with-pushed-matrix
 	 (scale 1 2 1)
-	 (color 1 1 1)
+	 (color 0 0 0)
 	 (translate 10 10 0)
 	 (with-primitive :points
 	   (vertex 200 200)

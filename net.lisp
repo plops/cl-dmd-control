@@ -349,10 +349,19 @@ answer---of type 0, 1, 3 or 5."
 ) ;; 24 times 1bit mono
 
 #+nil
-(loop for i below 100 do
-     (sleep .5)
-     (program-new-sequence 3))
+(program-new-sequence 3
+)
 
+#+nil
+(list
+ (read-dlpc3000-register #x16)
+ (read-dlpc3000-register #x4c)
+ (read-dlpc3000-register #x4b))
+#+nil
+(list
+ (write-dlpc3000-register #x16 '(#b111 0 0 0))
+ (write-dlpc3000-register #x4c '(#x13 #x12 #x00 #x00))  ;(#x13 #x12 #x11 #x25)
+ (write-dlpc3000-register #x4b '(#x00 #x00 #x00 #x14))) ;(#x24 #x16 #x15 #x14)
 #+nil
 (progn
   (write-dlpc3000-register #x50 '(0 0 0 6)) ; agc off
