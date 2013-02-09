@@ -2,7 +2,7 @@
 
 (eval-when (:compile-toplevel :execute :load-toplevel)
   (require :cl-glfw)
-;  (require :cl-glfw-opengl-version_1_1)
+  (require :cl-glfw-opengl-version_1_1)
   (require :cl-glfw-glu))
 
 (defpackage :v
@@ -52,7 +52,7 @@
 			     (with-open-file (s x)
 			       (file-length s))))
 		   (directory 
-		    (merge-pathnames #p"*/*.*" "/dev/shm/r/")))))
+		    (merge-pathnames #p"*.*" "/dev/shm/r/")))))
 
 #+nil
 (vid-libinit)
@@ -81,12 +81,8 @@
            t0 t1))
    (incf frames)))
 
-(let ((rot 0)
-      (start t))
-  
-  (defun draw ()
-    (count-fps)
-    (when start
+(let ((start t))
+  (defun load-all-videos ()
       (setf start nil)
       (vid-libinit)
       (when *h*
@@ -94,8 +90,7 @@
 	   (vid-close (elt *h* i))))
       (progn
 	(defparameter *h*
-	  (loop for e in (loop for i below (min (* 10 5)
-						
+	  (loop for e in (loop for i below (min 1
 						(length *vids*)) collect
 			      (grab-vid)) collect
 	       (let ((h (vid-alloc)))
@@ -104,7 +99,7 @@
 		   (loop while (< r 0)
 		      do
 			(setf r (vid-init h (format nil "~a" (grab-vid))
-					  128 128))))
+					  256 256))))
 		 (vid-decode-frame h)
 		 ;;(vid-set-active-thread-type h 1)
 		 (format t "~a~%" (list (vid-get-width h) (vid-get-height h)
@@ -113,77 +108,73 @@
 					(vid-get-active-thread-type h)))
 		 h)))
 	(format t "finished~%")))
+  (defun setup-gl-coordinate-system ()
     (destructuring-bind (w h) (glfw:get-window-size)
       (setf h (max h 1))
       (gl:viewport 0 0 w h)
-      (gl:clear-color .0 .2 .2 1)
+      (gl:clear-color .2 .2 .2 1)
       (gl:clear (logior gl:+color-buffer-bit+ gl:+depth-buffer-bit+))
       (gl:matrix-mode gl:+projection+)
       (gl:load-identity)
-;      (glu:perspective 65 (/ w h) 1 100)
-      (gl:ortho 0 (* 10 128) (* 5 128) 0 .01 10)
+      (gl:ortho 0 256 256 0 .01 10)
       (gl:matrix-mode gl:+modelview+)
-      (gl:load-identity)
-      #+nil      (glu:look-at 0 1 10 ;; camera
-			      0 0 0   ;; target
-			      0 0 1))
+      (gl:load-identity)))
+  (defun create-gl-texture-objects (n)
+	  (let ((objs (make-array n :element-type '(unsigned-byte 32))))
+	    (gl:gen-textures (length objs) objs)
+	    (dotimes (i  (length objs)) 
+	      (gl:bind-texture gl:+texture-2d+ (aref objs i))
+	      ;;(gl:pixel-store-i gl:+unpack-alignment+ 1)
+	      (gl:tex-parameter-i gl:+texture-2d+ 
+				  gl:+texture-min-filter+ gl:+nearest+)
+	      (gl:tex-parameter-i gl:+texture-2d+ 
+				  gl:+texture-mag-filter+ gl:+nearest+))
+	    objs))
+  (defun draw ()
+    (count-fps)
+    (when start
+      (load-all-videos))
+    (setup-gl-coordinate-system)
     (gl:translate-f 0 0 -1)
     (gl:rotate-f 0 0 0 1)
-    (if (< rot 360)
-	(incf rot .3)
-	(setf rot 0))
+    
     (gl:with-push-matrix
-      ;(gl:rotate-f rot 0 0 1)
-     
-      (let* ((objs (make-array (length *h*) :element-type '(unsigned-byte 32))))
-	;(sleep (/ .3 60))
-	(gl:gen-textures (length objs) objs)
-	(dotimes (i  (length objs)) 
-	  (gl:bind-texture gl:+texture-2d+ (aref objs i))
-	  ;;(gl:pixel-store-i gl:+unpack-alignment+ 1)
-	  (gl:tex-parameter-i gl:+texture-2d+ 
-			      gl:+texture-min-filter+ gl:+linear+)
-	  (gl:tex-parameter-i gl:+texture-2d+ 
-			      gl:+texture-mag-filter+ gl:+linear+))
+      (let* ((objs (create-gl-texture-objects (length *h*))))
 	(gl:enable gl:+texture-2d+)
 	(gl:matrix-mode gl:+modelview+)
 	(loop for i from 0 and h in *h* do
 	     (when h
-	       (let ((ww 128)
-		     (hh 128))
+	       (let ((ww 256)
+		     (hh 256))
 		 (when (= 0 (vid-decode-frame h))
 		   (format t "closing video ~a~%" h)
 		   (vid-close h)
 		   (let ((hnew (vid-alloc))
 			 (fn (format nil "~a" (grab-vid))))
 		     (format t "openingb ~a~%" fn)
-		     (let ((r (vid-init hnew fn 128 128)))
+		     (let ((r (vid-init hnew fn 256 256)))
 		       (loop while (< r 0)
 			  do
 			    (setf r (vid-init hnew
 					      (format nil "~a" (grab-vid))
-					      128 128))))
+					      256 256))))
 		     ;;(vid-set-active-thread-type hnew 1)
 		     (vid-decode-frame hnew)
 		     (setf (elt *h* i) hnew)
 		     (setf h hnew)))
 		 (progn
 		   (gl:bind-texture gl:+texture-2d+ (aref objs i))
-		   
 		   (gl:tex-image-2d gl:+texture-2d+ 0 
 				    gl:+rgba+
-				    128
-				    128
+				    256
+				    256
 				    0
-				    #x80e1 ;; bgra 
-				    ;;gl:+rgba+ 
+				    ;#x80e1 ;; bgra 
+				    gl:+rgba+ 
 				    gl:+unsigned-byte+
 				    (vid-get-data h 0)))
 		 (gl:with-push-matrix 
-		   (let ((ii (mod i 6))
-			 (jj (floor i 6)))
-		     (gl:translate-f (* jj ww) (* ii hh) 0))
-		   (gl:with-begin gl:+quads+
+		   (gl:with-begin gl:+quads+ ;; draw quad to display video texture
 		     (labels ((c (a b)
 				(gl:tex-coord-2f (/ a ww)  (/ b hh))
 				(gl:vertex-2f a b)))
@@ -198,7 +189,7 @@
 
 
 #+nil
-(glfw:do-window (:title "bla" :width (* 10 128) :height (* 5 128))
+(glfw:do-window (:title "bla" :width 256 :height 256)
     ()
   (when (eql (glfw:get-key glfw:+key-esc+) glfw:+press+)
     (return-from glfw::do-open-window))
