@@ -1,11 +1,11 @@
 cl-dmd-control
 ==============
 
-Use TI Lightcrafter projector, to display a video with 1440 fps.
+Use [TI Lightcrafter projector](http://www.ti.com/tool/dlplightcrafter), to display a video with 1440 fps.
 
 ![photograph](http://www.ti.com/graphics/tool/LCR-with-Pencil3-12.5-lrg.jpg)
 
-This TI Lightcrafter is a small projector, that contains a DMD chip with 608x648 mirrors.
+This TI Lightcrafter is a small projector (cost ~$500), that contains a DMD chip with 608x648 mirrors.
 Normally you would just connect a HDMI cable and it would display the RGB data with 60Hz.
 
 However, it contains an ARM chip that runs Linux. I connect to this using network and more
@@ -17,3 +17,6 @@ in this way is 24*60Hz=1440Hz.
 
 I could also store up to 96 bitplanes directly in the device and run them at maximal 4000Hz.
 But I rather want to generate the data on a GPU using OpenGL and perhaps OpenCL.
+
+Eventually I want to use it in a fluorescence Microscope. If necessary I will remove the optics
+and LED light source use a laser for illumination.
