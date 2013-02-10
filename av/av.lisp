@@ -49,10 +49,10 @@
   (mapcar #'first
 	  (mapcar #'(lambda (x)
 	    (list x
-			     (with-open-file (s x)
-			       (file-length s))))
-		   (directory 
-		    (merge-pathnames #p"*.*" "/dev/shm/r/")))))
+		  (with-open-file (s x)
+		    (file-length s))))
+		  (directory 
+		   (merge-pathnames #p"*.*" "/dev/shm/r/")))))
 
 #+nil
 (vid-libinit)
@@ -94,7 +94,7 @@
 (let* ((start t)
        (vw 960)
        (vh 540)
-       (dec 5)
+       (dec 10)
        (dw (floor vw dec))
        (dh (floor vh dec)))
   (defun set-video-sizes (w h decimate)
@@ -106,19 +106,21 @@
   (defun open-new-video ()
     (let ((h (vid-alloc)) ;; h will be freed when vid-close is
 	  ;; called in decode-frame
-	  )
+	  (fn nil))
       (loop with r = -1
 	 do 
 	   (setf r (vid-init h
-			     (format nil "~a" (grab-vid))
+			     (setf fn (format nil "~a" (grab-vid)))
 			     dw dh))
 	 while (< r 0))
       ;;(vid-set-active-thread-type hnew 1)
       (vid-decode-frame h)
-      (format t "~a~%" (list (vid-get-width h) (vid-get-height h)
-			     (vid-get-thread-count h)
-			     (vid-get-thread-type h)
-			     (vid-get-active-thread-type h)))
+      (format t "open-new-video ~a~%"
+	      (list fn
+		    (vid-get-width h) (vid-get-height h)
+		    (vid-get-thread-count h)
+		    (vid-get-thread-type h)
+		    (vid-get-active-thread-type h)))
       h))
   
   (defun load-all-videos ()
@@ -153,12 +155,12 @@
 			    gl:+texture-mag-filter+ gl:+nearest+))
       objs))
   
-  (defun decode-frame (h)
-    (when (= 0 (vid-decode-frame h))
-      (format t "closing video ~a~%" h)
-      (vid-close h)
-      (setf h (open-new-video)))
-    h)
+  (defun decode-frame (handle)
+    (when (= 0 (vid-decode-frame handle))
+      (format t "decode-frame: closing video ~a~%" handle)
+      (vid-close handle)
+      (setf handle (open-new-video)))
+    handle)
   (defun copy-frame-to-texture (h obj)
     (gl:bind-texture gl:+texture-2d+ obj)
     (gl:tex-image-2d gl:+texture-2d+ 0 
@@ -197,8 +199,10 @@
 
       (init-threshold-arrays dw dh)
       (dotimes (j 24)
-       (let ((h (decode-frame (first *h*))))
-	 (threshold-frame-into-texture h (aref objs 0) j)))
+	(let ((handle (decode-frame (first *h*))))
+	  (unless (= handle (first *h*)) ;; video was closed
+	    (setf *h* (push handle *h*)))
+	  (threshold-frame-into-texture handle (aref objs 0) j)))
       (draw-quad dw dh)
       
       (gl:disable gl:+texture-2d+)
