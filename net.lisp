@@ -1,5 +1,4 @@
 
-
 (require :sb-bsd-sockets)
 (defpackage :g (:use :cl :sb-bsd-sockets))
 (in-package :g)
@@ -283,6 +282,14 @@ answer---of type 0, 1, 3 or 5."
   (let ((resp (with-tcp (make-host-read-command #xff 0 :data (list reg)))))
     (make-dlp-packet-from-sequence resp)))
 
+(defun get-led-power ()
+ (loop for r in '(#x12 #x13 #x14) collect ;; rgb led brightness settings, 750 is default
+      (destructuring-bind (a b c d)
+	  (data-payload (read-dlpc3000-register r))
+	(+ a (* b 256)))))
+
+#+nil
+(get-led-power)
 #+nil
 (progn
  (defparameter *dither* (read-dlpc3000-register #x7e))
@@ -333,7 +340,16 @@ answer---of type 0, 1, 3 or 5."
 #+nil
 (disable-video-processing)
 
+#x400
+(defun set-led-power (r &optional (g r) (b r))
+  (declare (type (integer 750 #x400) r g b))
+  (loop for (reg val) in `((#x12 ,r) (#x13 ,g) (#x14 ,b)) collect
+       (let ((msb (ldb (byte 3 8) val)) ;; send 11 bit value
+	     (lsb (ldb (byte 8 0) val)))
+	(write-dlpc3000-register reg (list lsb msb 0 0)))))
 
+#+nil
+(set-led-power 1024)
 
 (defun program-new-sequence (seq)
   (unless (= 0 (first (data-payload (read-dlpc3000-register #x3a))))
@@ -346,12 +362,10 @@ answer---of type 0, 1, 3 or 5."
     (error "shouldn't be busy anymore.")))
 
 #+nil
- (program-new-sequence 12
-) ;; 24 times 1bit mono
+(program-new-sequence 12) ;; 24 times 1bit mono
 
 #+nil
-(program-new-sequence 3
-)
+(program-new-sequence 3)
 
 #+nil
 (list
