@@ -270,6 +270,12 @@ answer---of type 0, 1, 3 or 5."
 #+nil
 (defparameter *rep* (write-video-mode-setting 60 8 3))
 
+(defun read-solution ()
+  (let ((resp (with-tcp (make-host-read-command 6 0))))
+    (make-dlp-packet-from-sequence resp)))
+
+#+nil
+(read-solution) ;; by default no solutions are stored
 
 #+nil
 (defparameter *led* (read-led-current-setting))
@@ -333,14 +339,15 @@ answer---of type 0, 1, 3 or 5."
  )
 (defun disable-video-processing ()
   (list
-   (write-dlpc3000-register #x50 '(6 0 0 0))
-   (write-dlpc3000-register #x7e '(2 0 0 0))
-   (write-dlpc3000-register #x5e '(0 0 0 0))))
+   (write-dlpc3000-register #x50 '(6 0 0 0)) ;; agc
+   (write-dlpc3000-register #x7e '(2 0 0 0)) ;; temporal dither
+   (write-dlpc3000-register #x5e '(0 0 0 0)) ;; color coordinate adjustment
+   ))
 
 #+nil
 (disable-video-processing)
 
-#x400
+; (read-dlpc3000-register #x0c) ;; resolution 35 1:1 mirror mapping landscape
 (defun set-led-power (r &optional (g r) (b r))
   (declare (type (integer 750 #x400) r g b))
   (loop for (reg val) in `((#x12 ,r) (#x13 ,g) (#x14 ,b)) collect
