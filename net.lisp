@@ -270,7 +270,6 @@ answer---of type 0, 1, 3 or 5."
 #+nil
 (defparameter *rep* (write-video-mode-setting 60 8 3))
 
-#+nil
 (defun set-current-display-mode (mode)
   (declare (type (integer 0 4) mode))
   (let ((resp (with-tcp (make-host-write-command 1 1 :data 
@@ -286,6 +285,35 @@ answer---of type 0, 1, 3 or 5."
 
 #+nil
 (read-solution) ;; by default no solutions are stored
+
+(defun string-to-padded-list (name)
+  (declare (type (simple-array character 1) name))
+  (let ((n (length name)))
+    (unless (<= 1 n 32)
+      (error "name must have at most 32 characters")))
+  (let* ((zero-padded (map-into (make-array 32 :element-type '(unsigned-byte 8)
+					    :initial-element 0)
+				#'(lambda (x) (char-code x))
+				name)))
+    (map 'list #'identity zero-padded)))
+
+(defun save-solution (name)
+  (let* ((resp (with-tcp (make-host-write-command 6 0 
+						  :data (string-to-padded-list name)))))
+    (make-dlp-packet-from-sequence resp)))
+
+#+nil
+(save-solution "hdmi")
+
+(defun set-default-solution (name)
+  (let* ((resp (with-tcp 
+		 (make-host-write-command 
+		  6 1
+		  :data (append '(2) (string-to-padded-list name))))))
+    (make-dlp-packet-from-sequence resp)))
+
+#+nil
+(set-default-solution "hdmi")
 
 #+nil
 (defparameter *led* (read-led-current-setting))
