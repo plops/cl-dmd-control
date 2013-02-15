@@ -8,6 +8,10 @@
 
 (in-package :disp)
 
+;; physical dimensions: 6.5718mm x 3.699 mm
+;; aspect ratio 1.777
+;; 864/480 = 1.8
+;; 608/684 = .8888
 
 (let ((rot 0))
  (defun draw ()
