@@ -24,12 +24,11 @@
        
        (line-width 1)
        
-     
+       
 
        #+nil (color (expt (sin (/ rot 4.2)) 2) 
-	      (acos (expt (sin (/ rot 3.2)) 2))
-	      (expt (sin (/ rot 8.3)) 2))
-      
+		    (acos (expt (sin (/ rot 3.2)) 2))
+		    (expt (sin (/ rot 8.3)) 2))
        
        (let ((period 8)
 	     (width 24))
@@ -59,6 +58,19 @@
 		    (v (+ (* .5 (sqrt 2) j)
 			  (* width .5 (sqrt 2) (mod rot 10))
 			  ))))))))
+       
+       (with-pushed-matrix 
+	 (scale 1 2 1)
+	 (translate 400 100 0)
+	 (rotate -45 0 0 1)
+	 (flet ((v (x)
+		  (vertex x 0) (vertex x 1000)))
+	  (with-primitive :lines
+	    (color 0 0 0)
+	    (v (+ (* .5 (sqrt 2) -1)))
+	    (dotimes (i 200)
+	      (v (+ (* .5 (sqrt 2) 1)
+		    (* i .5 (sqrt 2) 2)))))))
 
        (with-pushed-matrix
 	 (scale 1 2 1)
@@ -82,11 +94,23 @@
 	   (vertex 3 8))
 
 	(with-pushed-matrix
-	  
 	  (with-primitive :points
 	    (dotimes (i 20)
 	      (dotimes (j 50)
 		(vertex (* 4 i) (* 4 j)))))))
+
+       (with-pushed-matrix
+	 (translate (floor w 2) (floor h 2) 0)
+	 (let ((s 50))
+	  (scale s (* 2 s) 1))
+	 (color 0 0 0)
+	 
+	 (with-primitive :quads
+	   (vertex  0 -1)
+	   (vertex  1  0)
+	   (vertex  0  1)
+	   (vertex -1  0)))
+
        (incf rot 1)))))
 
 #+nil

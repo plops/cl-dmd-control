@@ -270,6 +270,16 @@ answer---of type 0, 1, 3 or 5."
 #+nil
 (defparameter *rep* (write-video-mode-setting 60 8 3))
 
+#+nil
+(defun set-current-display-mode (mode)
+  (declare (type (integer 0 4) mode))
+  (let ((resp (with-tcp (make-host-write-command 1 1 :data 
+						 (list mode)))))
+    (make-dlp-packet-from-sequence resp)))
+
+#+nil
+(set-current-display-mode 2)
+
 (defun read-solution ()
   (let ((resp (with-tcp (make-host-read-command 6 0))))
     (make-dlp-packet-from-sequence resp)))
